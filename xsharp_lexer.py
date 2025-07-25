@@ -19,13 +19,13 @@ DATA_TYPES = [
 class TT(Enum):
 	LT, LE, EQ, NE, GT, GE,\
 	ADD, SUB, INC, DEC,\
-	AND, OR, NOT, XOR,\
+	AND, OR, NOT, NOT2, XOR,\ # Both kinds of Bitwise not: `~`, `!`
 	LPR, RPR, LBR, RBR, LSQ, RSQ,\
 	COL, ASSIGN, COMMA,\
 	MUL, DIV, RSHIFT, LSHIFT,\
 	ABS, SIGN, AT,\
 	NUM, IDENTIFIER, KEYWORD, NEWLINE, EOF\
-	= range(35)
+	= range(36)
 
 	def __str__(self):
 		return super().__str__().removeprefix("TT.")
@@ -161,11 +161,11 @@ class Lexer:
 				self.advance()
 				tokens.append(Token(start_pos, self.pos, TT.OR))
 			
-			elif self.current_char == "~": # Bitwise NOT
+			elif self.current_char == "~": # Bitwise NOT 1
 				start_pos = self.pos.copy()
 				self.advance()
 				tokens.append(Token(start_pos, self.pos, TT.NOT))
-			
+
 			elif self.current_char == "^": # Bitwise XOR
 				start_pos = self.pos.copy()
 				self.advance()
@@ -232,7 +232,8 @@ class Lexer:
 				if self.current_char == "+": # Increment
 					self.advance()
 					tokens.append(Token(start_pos, self.pos, TT.INC))
-				else: tokens.append(Token(start_pos, self.pos, TT.ADD)) # Addition
+				else:
+					tokens.append(Token(start_pos, self.pos, TT.ADD)) # Addition
 			
 			elif self.current_char == "-":
 				start_pos = self.pos.copy()
@@ -240,7 +241,8 @@ class Lexer:
 				if self.current_char == "-":
 					self.advance()
 					tokens.append(Token(start_pos, self.pos, TT.DEC)) # Decrement
-				else: tokens.append(Token(start_pos, self.pos, TT.SUB)) # Subtraction
+				else: 
+					tokens.append(Token(start_pos, self.pos, TT.SUB)) # Subtraction
 			
 			elif self.current_char == "=":
 				start_pos = self.pos.copy()
@@ -282,8 +284,11 @@ class Lexer:
 					self.advance()
 					tokens.append(Token(start_pos, self.pos, TT.NE))
 				else:
-					return None, UnexpectedCharacter(start_pos, self.pos, "'!'")
-
+					# Bitwise Not 2
+					start_pos = self.pos.copy()
+				        self.advance()
+				        tokens.append(Token(start_pos, self.pos, TT.NOT))
+					
 			elif self.current_char in string.digits:
 				# Make number
 				start_pos = self.pos.copy()

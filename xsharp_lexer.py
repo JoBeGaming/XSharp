@@ -287,7 +287,7 @@ class Lexer:
 					# Bitwise Not 2
 					start_pos = self.pos.copy()
 				        self.advance()
-				        tokens.append(Token(start_pos, self.pos, TT.NOT))
+				        tokens.append(Token(start_pos, self.pos, TT.NOT2))
 					
 			elif self.current_char in string.digits:
 				# Make number

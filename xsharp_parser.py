@@ -671,7 +671,7 @@ class Parser:
 	def unary(self):
 		res = ParseResult()
 
-		if self.current_token.token_type in (TT.ADD, TT.SUB, TT.NOT, TT.AT, TT.ABS, TT.SIGN):
+		if self.current_token.token_type in (TT.ADD, TT.SUB, TT.NOT, TT.NOT2, TT.AT, TT.ABS, TT.SIGN):
 			tok = self.current_token
 			self.advance()
 			value = res.register(self.unary())

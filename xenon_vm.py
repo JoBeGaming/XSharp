@@ -250,7 +250,7 @@ class VirtualMachine(QMainWindow):
 
 		return False
 
-	def run_step(self, PROM: list[str], max_steps: int|None = None):
+	def run_step(self, PROM: list[str], max_steps: int | None = None):
 		halted: bool = self.step(PROM)
 		self.steps += 1
 
@@ -259,7 +259,7 @@ class VirtualMachine(QMainWindow):
 		elif max_steps is not None and self.steps >= max_steps:
 			self.run_timer.stop()
 
-	def run(self, code: str, max_steps: int|None = None):
+	def run(self, code: str, max_steps: int | None = None):
 		NOOP = "000000000000"
 
 		PROM = code.strip().splitlines()

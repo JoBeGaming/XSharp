@@ -1,0 +1,23 @@
+COMP 1 D // 1 params
+LDIA 17
+COMP D M
+LDIA 5
+COMP A D
+LDIA 18 // x
+COMP D M
+LDIA 19 // n
+COMP D M
+LDIA 18 // x
+COMP M D
+LDIA 16 // arg_0
+COMP D M
+CALL .sub_next
+LDIA 19 // n
+COMP M D
+HALT
+.sub_next
+	LDIA 16 // u
+	COMP M D
+	LDIA 19 // n
+	COMP D M
+	RETN

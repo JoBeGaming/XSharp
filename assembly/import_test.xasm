@@ -1,0 +1,47 @@
+COMP 0 D // 0 params
+LDIA 16
+COMP D M
+COMP 0 D // 0 params
+LDIA 17
+COMP D M
+LDIA 18 // k
+COMP D M
+HALT
+.sub_ok
+	RETN
+.sub_imported
+	LDIA 5
+	COMP A D
+	LDIA r0
+	COMP D M
+	LDIA 6
+	COMP A D
+	COMP 0 D
+	LDIA 16
+	COMP A D
+	.mul_loop0
+	COMP 1 D
+	LDIA r1 // Get LSB
+	COMP D&M D
+	LDIA .mul_shift0
+	COMP D JEQ
+	LDIA r0 // Multiplier
+	COMP M D
+	LDIA r2 // Product
+	COMP D M
+	.mul_shift0
+	LDIA r1
+	COMP >>M M
+	LDIA r0
+	COMP M D
+	COMP D+M M
+	LDIA r3
+	COMP M-- DM
+	LDIA .mul_loop0
+	COMP D JGE
+	LDIA r2
+	COMP M D
+	LDIA 18 // k
+	COMP D M
+	CALL .sub_ok
+	RETN

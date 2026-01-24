@@ -2,13 +2,14 @@ from enum import Enum
 from xsharp_helper import Position, UnexpectedCharacter, UnknownImport
 import string
 from os.path import exists
+import re
 
 KEYWORDS = [
 	"const", "var",
 	"for", "start", "end", "step",
 	"while",
 	"if", "elseif", "else",
-	"include",
+	#"include",
 	"sub"
 ]
 DATA_TYPES = [
@@ -29,6 +30,8 @@ class TT(Enum):
 
 	def __str__(self):
 		return super().__str__().removeprefix("TT.")
+
+token_patterns = {}
 
 class Token:
 	def __init__(self, start_pos: Position, end_pos: Position, token_type: TT, value: str|int|None = None):
@@ -53,22 +56,28 @@ class Lexer:
 	def __init__(self, fn: str, ftxt: str, running_from_bot: bool = False):
 		self.fn = fn
 		self.ftxt = ftxt
+		self.rest = ftxt
 		self.from_bot = running_from_bot
+
+		self.tokens: list[Token] = []
 
 		self.pos = Position(-1, 0, -1, fn, ftxt)
 		self.libraries: list[str] = []
-		self.current_char = None
 		self.imported: set = set()
 		self.advance()
 
 	# Advance to the next character
 	def advance(self):
-		self.pos.advance(self.current_char)
-		self.current_char = None if self.pos.index >= len(self.ftxt) else self.ftxt[self.pos.index]
+		self.pos.advance(self.rest[0] if self.rest else None)
+		self.rest = self.rest[1:]
+
+	# advance by length
+	def advance_by(self, by: re.Match):
+		self.pos.advance_by(by)
+		self.rest = self.rest[by.end():]
 
 	# Standard libraries
 	def process_file(self, contents: str|None = None):
-		txt_lines : str
 		if contents:
 			txt_lines = contents.splitlines()
 		else:
@@ -102,7 +111,7 @@ class Lexer:
 				
 				files.append(lib)
 			elif lib == "operations":
-				self.libraries.append("operations")
+				pass  # Built-in library, no file needed
 			else:
 				index = self.ftxt.index(f"{lib}")
 				start_pos = Position(
@@ -118,16 +127,20 @@ class Lexer:
 			if file in self.imported:
 				continue
 			with open(f"programs/{file}", "r") as module:
-				text = "".join(module.readlines())
 				self.imported.add(file)
+				contents = module.read()
+				if contents == self.ftxt:
+					print("Skipping self-import off:", file)
+					continue
+				text = ";".join(contents.splitlines())
 				self.process_file(text)
 				module_txt += text + "\n"
-		
+		print(f"{module_txt= }")
 		self.ftxt = module_txt + self.ftxt
 
 	# Lexes the file text and returns a list of tokens
 	def lex(self):
-		tokens: list[Token] = []
+		self.tokens: list[Token] = []
 
 		lib_error = self.process_file()
 		if lib_error is not None:
@@ -135,213 +148,103 @@ class Lexer:
 		
 		# Reinitialize, as this messes up the current character
 		self.pos = Position(-1, 0, -1, self.fn, self.ftxt)
+		print(f"{self.ftxt= }")
+		self.rest = " " + self.ftxt
 		self.advance()
 
-		while self.current_char is not None:
-			if self.ftxt.splitlines(keepends=True)[self.pos.line].strip().startswith("include "):
-				self.advance()
+		while not self.rest == "":
+			print(f"{self.rest= }")
+			# handling include statemnets
+			# include = re.match(r"include [\w ,\.]*", self.rest)
+			# if include:
+			# 	print(f"{include= }")
+			# 	self.advance_by(include)
+			# 	continue
+
+			# handling whitespace
+			whitespace = re.match(r"[\t ]+", self.rest)
+			if whitespace:
+				print(f"{whitespace= }")
+				self.advance_by(whitespace)
 				continue
 
-			if self.current_char in " \t": # Ignore whitespace
-				self.advance()
-			
-			elif self.current_char in "\n\r;": # Newlines
-				char = self.current_char
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.NEWLINE, char))
-			
-			elif self.current_char == "&": # Bitwise AND
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.AND))
-			
-			elif self.current_char == "|": # Bitwise OR
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.OR))
-			
-			elif self.current_char == "~": # Bitwise NOT
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.NOT))
-			
-			elif self.current_char == "^": # Bitwise XOR
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.XOR))
-			
-			elif self.current_char == "#": # Absolute value
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.ABS))
-			
-			elif self.current_char == "$": # Sign
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.SIGN))
-			
-			elif self.current_char == "@": # At
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.AT))
-			
-			elif self.current_char == "(":
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.LPR))
-			
-			elif self.current_char == ")":
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.RPR))
-			
-			elif self.current_char == "{":
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.LBR))
-			
-			elif self.current_char == "}":
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.RBR))
 
-			elif self.current_char == "[":
-				start_pos = self.pos.copy()
+			patterns = [(rule_func, re.match(pattern, self.rest)) for pattern, rule_func in token_patterns.items()]
+			matches = [(rule_func, match) for rule_func, match in patterns if match]
+			matches.sort(key=lambda e: len(e[1].group()), reverse=True)
+			print(f"{(matches[0][1].re if len(matches) > 0 else None)} {matches=}")
+			start_pos = self.pos.copy()
+			if matches == []:
 				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.LSQ))
+				return None, UnexpectedCharacter(start_pos, self.pos, f"'{self.rest[0:]}'")
 			
-			elif self.current_char == "]":
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.RSQ))
+			matched = matches[0]
 			
-			elif self.current_char == ":":
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.COL))
-			
-			elif self.current_char == ",":
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.COMMA))
-			
-			elif self.current_char == "+":
-				start_pos = self.pos.copy()
-				self.advance()
-				if self.current_char == "+": # Increment
-					self.advance()
-					tokens.append(Token(start_pos, self.pos, TT.INC))
-				else: tokens.append(Token(start_pos, self.pos, TT.ADD)) # Addition
-			
-			elif self.current_char == "-":
-				start_pos = self.pos.copy()
-				self.advance()
-				if self.current_char == "-":
-					self.advance()
-					tokens.append(Token(start_pos, self.pos, TT.DEC)) # Decrement
-				else: tokens.append(Token(start_pos, self.pos, TT.SUB)) # Subtraction
-			
-			elif self.current_char == "=":
-				start_pos = self.pos.copy()
-				self.advance()
-				if self.current_char == "=":
-					self.advance()
-					tokens.append(Token(start_pos, self.pos, TT.EQ))
-				else:
-					tokens.append(Token(start_pos, self.pos, TT.ASSIGN))
-			
-			elif self.current_char == "<":
-				start_pos = self.pos.copy()
-				self.advance()
-				if self.current_char == "=":
-					self.advance()
-					tokens.append(Token(start_pos, self.pos, TT.LE))
-				elif self.current_char == "<":
-					self.advance()
-					tokens.append(Token(start_pos, self.pos, TT.LSHIFT))
-				else:
-					tokens.append(Token(start_pos, self.pos, TT.LT))
-			
-			elif self.current_char == ">":
-				start_pos = self.pos.copy()
-				self.advance()
-				if self.current_char == "=":
-					self.advance()
-					tokens.append(Token(start_pos, self.pos, TT.GE))
-				elif self.current_char == ">":
-					self.advance()
-					tokens.append(Token(start_pos, self.pos, TT.RSHIFT))
-				else:
-					tokens.append(Token(start_pos, self.pos, TT.GT))
+			matched[0](self, matched[1])
 
-			elif self.current_char == "!":
-				start_pos = self.pos.copy()
-				self.advance()
-				if self.current_char == "=":
-					self.advance()
-					tokens.append(Token(start_pos, self.pos, TT.NE))
-				else:
-					return None, UnexpectedCharacter(start_pos, self.pos, "'!'")
 
-			elif self.current_char in string.digits:
-				# Make number
-				start_pos = self.pos.copy()
-				num_str = ""
-				while self.current_char is not None and self.current_char in string.digits:
-					num_str += self.current_char
-					self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.NUM, int(num_str)))
-			
-			elif self.current_char in string.ascii_letters or self.current_char == "_":
-				# Make identifier/keyword
-				start_pos = self.pos.copy()
-				identifier = ""
-				while self.current_char is not None and (self.current_char in string.ascii_letters + string.digits or self.current_char == "_"):
-					identifier += self.current_char
-					self.advance()
-				tokens.append(Token(
-					start_pos, self.pos,
-					TT.KEYWORD if identifier in KEYWORDS+DATA_TYPES else TT.IDENTIFIER,
-					identifier
-				))
-			
-			elif self.current_char == "*" and "operations" in self.libraries:
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.MUL))
-
-			elif self.current_char == "/":
-				# Try to make a comment
-				start_pos = self.pos.copy()
-				self.advance()
-				if self.current_char == "/":
-					self.advance()
-					while self.current_char is not None and self.current_char not in "\n\r":
-						self.advance()
-				
-				elif self.current_char == "*":
-					self.advance()
-					while self.pos.index <= len(self.ftxt) - 2 and \
-					self.current_char + self.ftxt[self.pos.index + 1] != "*/":
-						self.advance()
-					
-					self.advance()
-					self.advance()
-				
-				elif "operations" in self.libraries:
-					start_pos = self.pos.copy()
-					self.advance()
-					tokens.append(Token(start_pos, self.pos, TT.DIV))
-
-				else:
-					return None, UnexpectedCharacter(start_pos, self.pos, "'/'")
-			
-			else: # Unrecognized character
-				start_pos = self.pos.copy()
-				char = self.current_char
-				self.advance()
-				return None, UnexpectedCharacter(start_pos, self.pos, f"'{char}'")
+		print(f"{self.rest= }")
 		
-		tokens.append(Token(self.pos, self.pos, TT.EOF))
-		return tokens, None
+		self.tokens.append(Token(self.pos, self.pos, TT.EOF))
+		print(f"{self.tokens= }")
+		return self.tokens, None
+
+
+def push(token_type: TT):
+	def push_token(lexer: Lexer, matched: re.Match):
+		lexer.advance_by(matched)
+		start_pos = lexer.pos.copy()
+		lexer.tokens.append(Token(start_pos, lexer.pos, token_type, *matched.groups()))
+
+	return push_token
+
+def skip():
+	def handle_include(lexer: Lexer, matched: re.Match):
+		lexer.advance_by(matched)
+	return handle_include
+
+token_patterns = {
+	re.compile(r"<"): 			push(TT.LT),
+	re.compile(r"<="):			push(TT.LE),
+	re.compile(r"=="): 			push(TT.EQ),
+	re.compile(r"!="): 			push(TT.NE),
+	re.compile(r">"): 			push(TT.GT),
+	re.compile(r">="): 			push(TT.GE),
+	re.compile(r"\+"): 			push(TT.ADD),
+	re.compile(r"-"): 			push(TT.SUB),
+	re.compile(r"\*"): 			push(TT.MUL),
+	re.compile(r"\/"): 			push(TT.DIV),
+	re.compile(r"\+\+"): 		push(TT.INC),
+	re.compile(r"--"):			push(TT.DEC),
+	re.compile(r"&"): 			push(TT.AND),
+	re.compile(r"\|"):			push(TT.OR),
+	re.compile(r"~"): 			push(TT.NOT),
+	re.compile(r"\^"):			push(TT.XOR),
+	re.compile(r"\("):			push(TT.LPR),
+	re.compile(r"\)"):			push(TT.RPR),
+	re.compile(r"\{"):			push(TT.LBR),
+	re.compile(r"\}"):			push(TT.RBR),
+	re.compile(r"\["):			push(TT.LSQ),
+	re.compile(r"\]"):			push(TT.RSQ),
+	re.compile(r":"): 			push(TT.COL),
+	re.compile(r"="): 			push(TT.ASSIGN),
+	re.compile(r","): 			push(TT.COMMA),
+	re.compile(r">>"):			push(TT.RSHIFT),
+	re.compile(r"<<"):			push(TT.LSHIFT),
+	re.compile(r"#"): 			push(TT.ABS),
+	re.compile(r"\$"): 			push(TT.SIGN),
+	re.compile(r"@"): 			push(TT.AT),
+	re.compile(r"(\d+)"): 		push(TT.NUM),
+	re.compile("("+"|".join(KEYWORDS+DATA_TYPES)+")"):
+								push(TT.KEYWORD),
+	re.compile(r"include (operations)"):
+								skip(),
+	re.compile(r"include\s+([\w]+\.xs(?:\s*,\s*[\w]+\.xs)*)"): # import files
+							skip(),
+	
+	re.compile(r"(\w[\w\d]*)"):			push(TT.IDENTIFIER),
+	re.compile(r"(\n|\t|;)"): 			push(TT.NEWLINE),
+	re.compile(r"//[^\r\n]*[\n\r]"):	skip(),  # Single-line comment
+	re.compile(r"/\*[\s\S]*?\*/"): 		skip(),  # Multi-line comment
+	re.compile(r"[\r\n\t ]+"): 			skip(),  # Whitespace
+}

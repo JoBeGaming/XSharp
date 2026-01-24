@@ -1,5 +1,6 @@
 from PyQt6.QtCore import QRegularExpression
 from PyQt6.QtGui import QTextCharFormat, QSyntaxHighlighter, QFont, QColor
+from re import Match
 
 # Position class
 class Position:
@@ -10,13 +11,23 @@ class Position:
 		self.fn = fn
 		self.ftxt = ftxt
 	
-	def advance(self, current_char: str):
+	def advance(self, current_char: str | None):
 		self.index += 1
 		self.col += 1
 
 		if current_char == "\n":
 			self.line += 1
 			self.col = 0
+		
+		return self
+	
+	def advance_by(self, by: Match):
+		self.index += by.end()
+		self.col += by.end()
+		lines = by.group().splitlines()
+		self.line += len(lines) - 1
+		if len(lines) > 1:
+			self.col = len(lines[-1])
 		
 		return self
 
